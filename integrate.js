@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 
 const TOKEN_ADDRESS = "0xA7E27d9BbcD7ff69F7d5e409BbB70bFdD734D9E5"
-const DAO_ADDRESS = "0x6b28EFbaF76cDd7F941Ae16F8FC345396bdeea42"
+const DAO_ADDRESS = "0xF7Ea8Ec6B55501987C7Ce96614dd7c9B1a014a8e"
 
 
 const DAO_ABI = [
