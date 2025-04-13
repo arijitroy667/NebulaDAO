@@ -22,10 +22,16 @@ type Proposal = {
 export function ProposalList() {
     const { proposalIds } = useProposalContext()
     const [proposals, setProposals] = useState<Proposal[]>([])
+    const [isLoading, setIsLoading] = useState(false)
 
     useEffect(() => {
         const fetchProposalDetails = async () => {
+            setIsLoading(true)
             try {
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('Please install MetaMask or another Web3 wallet')
+                }
+
                 const provider = new BrowserProvider(window.ethereum)
                 const contractAddress = "YOUR_CONTRACT_ADDRESS"
                 const abi = ["function getProposal(uint256 proposalId) public view returns (address, string, uint256, uint256, uint256, uint256, uint256, bool)"]
@@ -49,6 +55,8 @@ export function ProposalList() {
                 setProposals(fetchedProposals)
             } catch (error) {
                 console.error("Error fetching proposals:", error)
+            } finally {
+                setIsLoading(false)
             }
         }
 
@@ -59,22 +67,28 @@ export function ProposalList() {
 
     return (
         <div className="space-y-4">
-            <h2 className="text-2xl font-bold">Active Proposals</h2>
-            {proposals.map((proposal) => (
-                <div key={proposal.id} className="border p-4 rounded-lg">
-                    <h3 className="text-xl font-semibold">Proposal {proposal.id}</h3>
-                    <p>{proposal.description}</p>
-                    <div className="mt-2">
-                        <p>Votes For: {proposal.votesFor}</p>
-                        <p>Votes Against: {proposal.votesAgainst}</p>
-                        <p>Votes Abstain: {proposal.votesAbstain}</p>
+            <h2 className="text-2xl font-bold mb-6">Active Proposals</h2>
+            {isLoading ? (
+                <div className="text-center">Loading proposals...</div>
+            ) : proposals.length > 0 ? (
+                proposals.map((proposal) => (
+                    <div key={proposal.id} className="border p-4 rounded-lg">
+                        <h3 className="text-xl font-semibold">Proposal {proposal.id}</h3>
+                        <p>{proposal.description}</p>
+                        <div className="mt-2">
+                            <p>Votes For: {proposal.votesFor}</p>
+                            <p>Votes Against: {proposal.votesAgainst}</p>
+                            <p>Votes Abstain: {proposal.votesAbstain}</p>
+                        </div>
+                        <div className="mt-2 text-sm text-gray-500">
+                            <p>Start: {new Date(proposal.startTime).toLocaleString()}</p>
+                            <p>End: {new Date(proposal.endTime).toLocaleString()}</p>
+                        </div>
                     </div>
-                    <div className="mt-2 text-sm text-gray-500">
-                        <p>Start: {new Date(proposal.startTime).toLocaleString()}</p>
-                        <p>End: {new Date(proposal.endTime).toLocaleString()}</p>
-                    </div>
-                </div>
-            ))}
+                ))
+            ) : (
+                <div className="text-center text-gray-500">No active proposals found</div>
+            )}
         </div>
     )
 }
