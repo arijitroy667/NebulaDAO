@@ -2,6 +2,12 @@
 
 import { createContext, useContext, useState, ReactNode } from "react"
 
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 type ProposalContextType = {
   proposalIds: string[]
   addProposalId: (id: string) => void
