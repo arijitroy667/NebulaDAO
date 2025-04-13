@@ -14,6 +14,7 @@ import { Slider } from "@/components/ui/slider"
 import { ArrowLeftIcon } from "lucide-react"
 import type { Proposal } from "@/components/proposals"
 import { createProposal } from "../integrate"
+import { useProposalContext } from "./context/proposalContext"
 
 const formSchema = z.object({
   title: z.string().min(5, {
@@ -40,6 +41,7 @@ interface CreateProposalFormProps {
 
 export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormProps) {
   const [votingPeriod, setVotingPeriod] = useState(7)
+  const { addProposalId } = useProposalContext()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -52,13 +54,16 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
     },
   })
 
-  function handleSubmit(values: FormValues) {
+  async function handleSubmit(values: FormValues) {
     const { title, description, votingPeriodDays, targetContract, calldata } = values;
 
     try {
       // Call your integration function
-      proposalId = createProposal(description, votingPeriodDays, targetContract, calldata);
+      const proposalId = createProposal(description, votingPeriodDays, targetContract, calldata);
       // Then notify parent component
+      if (proposalId) {
+        addProposalId(proposalId.toString());
+      }
       onSubmit(values);
     } catch (error) {
       console.error("Error creating proposal:", error);
