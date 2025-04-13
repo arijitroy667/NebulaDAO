@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ProposalProvider } from '@/components/context/proposalContext'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -14,7 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ProposalProvider>
+          {children}
+        </ProposalProvider>
+      </body>
     </html>
   )
 }
