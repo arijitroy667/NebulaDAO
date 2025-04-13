@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { ArrowLeftIcon } from "lucide-react"
 import type { Proposal } from "@/components/proposals"
-import {createProposal} from "../integrate"
+import { createProposal } from "../integrate"
 
 const formSchema = z.object({
   title: z.string().min(5, {
@@ -57,7 +57,7 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
 
     try {
       // Call your integration function
-      proposalId=createProposal(description,votingPeriodDays,targetContract,calldata);
+      proposalId = createProposal(description, votingPeriodDays, targetContract, calldata);
       // Then notify parent component
       onSubmit(values);
     } catch (error) {
