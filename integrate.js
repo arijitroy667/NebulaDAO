@@ -1,11 +1,11 @@
 import {ethers} from "ethers";
 
-const TOKEN_ADDRESS=0xA7E27d9BbcD7ff69F7d5e409BbB70bFdD734D9E5
-const DAO_ADDRESS=0x6dd27AE40684a7aA2737409c7241D26576EC9e5F
+const TOKEN_ADDRESS="0xA7E27d9BbcD7ff69F7d5e409BbB70bFdD734D9E5"
+const DAO_ADDRESS="0x6b28EFbaF76cDd7F941Ae16F8FC345396bdeea42"
 
 
 const DAO_ABI = [
-    "function createProposal(string memory _description,uint256 _votingPeriod,address _targetContract,bytes memory _callData) external",
+    "function createProposal(string memory _description,uint256 _votingPeriod,address _targetContract,bytes memory _callData) external returns(uint256)",
     "function vote(uint256 _proposalId, uint8 _voteType) external",
     "function executeProposal(uint256 _proposalId) external nonReentrant",
     "function getProposal(uint256 _proposalId) external view returns (address proposer,string memory description,uint256 votesFor,uint256 votesAgainst,uint256 votesAbstain,uint256 startTime,uint256 endTime,bool executed)",
@@ -29,9 +29,25 @@ async function getContract() {
 
 async function createProposal(description,votingPeriod,targetContract,callData){
     const contract = await getContract(DAO_ADDRESS);
-    const tx = await contract.createProposal(description,votingPeriod,targetContract,callData);
-    await tx.wait();
-    console.log("Proposal created:", tx);
+    const tx = await contract.createProposal(description, votingPeriod, targetContract, callData);
+    const receipt = await tx.wait();
+    
+    // Find the ProposalCreated event in the logs
+    const proposalCreatedEvent = receipt.logs
+        .map(log => {
+            try {
+                return contract.interface.parseLog(log);
+            } catch (e) {
+                return null;
+            }
+        })
+        .find(event => event && event.name === "ProposalCreated");
+    
+    // Extract the proposal ID from the event
+    const proposalId = proposalCreatedEvent ? proposalCreatedEvent.args[0] : null;
+    
+    console.log("Proposal created:", proposalId);
+    return proposalId;
 }
 
 async function vote(proposalId,voteType){

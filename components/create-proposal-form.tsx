@@ -57,7 +57,7 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
 
     try {
       // Call your integration function
-      createProposal(description,votingPeriodDays,targetContract,calldata);
+      proposalId=createProposal(description,votingPeriodDays,targetContract,calldata);
       // Then notify parent component
       onSubmit(values);
     } catch (error) {
