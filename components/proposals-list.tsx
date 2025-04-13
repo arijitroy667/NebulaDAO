@@ -17,9 +17,9 @@ export function ProposalsList({ proposals, onSelectProposal }: ProposalsListProp
   const getStatusColor = (status: Proposal["status"]) => {
     switch (status) {
       case "active":
-        return "bg-blue-500"
+        return "bg-blue-700"
       case "passed":
-        return "bg-green-500"
+        return "bg-green-400"
       case "rejected":
         return "bg-red-500"
       case "pending":
@@ -98,7 +98,7 @@ export function ProposalsList({ proposals, onSelectProposal }: ProposalsListProp
                       {getTimeLeft(proposal.endDate)}
                     </span>
                   </div>
-                  <Progress value={forPercentage} className="h-2" />
+                  <Progress value={forPercentage} className="h-3 bg-orange-200" />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>For: {proposal.votes.for}</span>
                     <span>Against: {proposal.votes.against}</span>
@@ -125,7 +125,7 @@ export function ProposalsList({ proposals, onSelectProposal }: ProposalsListProp
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-center text-muted-foreground">No proposals found</p>
-            <Button variant="outline" className="mt-4" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+            <Button variant="outline" className="mt-3 bg-emerald-300" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
               Create your first proposal
             </Button>
           </CardContent>
