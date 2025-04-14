@@ -571,24 +571,74 @@ async function executeProposal(proposalId) {
 
 async function getProposal(proposalId) {
     try {
-        // First, resolve the proposalId if it's a Promise
-        const resolvedId = proposalId && typeof proposalId === 'object' && 'then' in proposalId
-            ? await proposalId
-            : proposalId;
-            
-        // Make sure we have a valid value
-        if (resolvedId === null || resolvedId === undefined) {
+        // Handle null/undefined inputs
+        if (proposalId === null || proposalId === undefined) {
             throw new Error("Invalid proposal ID: null or undefined");
         }
+
+        // Convert Promise to actual value
+        let resolvedId;
+        if (typeof proposalId === 'object' && proposalId !== null) {
+            console.log("ProposalID type before resolution:", typeof proposalId);
+            
+            if ('then' in proposalId && typeof proposalId.then === 'function') {
+                try {
+                    resolvedId = await proposalId;
+                    console.log("Resolved Promise to:", resolvedId);
+                } catch (err) {
+                    throw new Error(`Failed to resolve Promise: ${err.message}`);
+                }
+            } else {
+                resolvedId = proposalId;
+            }
+        } else {
+            resolvedId = proposalId;
+        }
         
-        // Convert to string to ensure it can be properly handled
-        const stringId = resolvedId.toString();
+        // Convert to a proper numeric value
+        let numericId;
+        if (typeof resolvedId === 'string') {
+            // Remove any non-numeric characters if present
+            const cleanId = resolvedId.replace(/[^0-9]/g, '');
+            numericId = cleanId.length > 0 ? cleanId : '0';
+        } else if (typeof resolvedId === 'number') {
+            numericId = resolvedId.toString();
+        } else {
+            numericId = '0';
+            console.warn(`Unexpected proposal ID type: ${typeof resolvedId}, using default 0`);
+        }
         
-        // Now get the contract and call with the resolved ID
+        console.log(`Final ID being sent to contract: ${numericId} (type: ${typeof numericId})`);
+        
+        // First check if the proposal exists by querying the proposal count
         const contract = await getContract();
-        const proposal = await contract.getProposal(stringId);
-        console.log("Proposal details:", proposal);
-        return proposal;
+        try {
+            const count = await contract.proposalCount();
+            const proposalCount = Number(count);
+            console.log(`Total proposal count: ${proposalCount}`);
+            
+            // Check if the ID is within valid range (assuming IDs start from 1)
+            const idNumber = Number(numericId);
+            if (idNumber <= 0 || idNumber > proposalCount) {
+                console.warn(`Proposal ID ${idNumber} out of range (max: ${proposalCount})`);
+                return null; // Return null to indicate non-existent proposal
+            }
+            
+            // Try to get the proposal
+            const proposal = await contract.getProposal(numericId);
+            console.log("Proposal details:", proposal);
+            return proposal;
+        } catch (contractError) {
+            console.error(`Contract error fetching proposal: ${contractError.message}`);
+            
+            // Check if it's the specific "does not exist" error
+            if (contractError.message.includes("Proposal does not exist")) {
+                console.warn(`Proposal ${numericId} does not exist on the contract`);
+                return null; // Return null instead of throwing
+            }
+            
+            throw contractError; // Re-throw other errors
+        }
     } catch (error) {
         console.error(`Error fetching proposal ${proposalId}:`, error);
         throw error;
