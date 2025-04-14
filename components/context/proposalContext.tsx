@@ -16,11 +16,26 @@ type ProposalContextType = {
 const ProposalContext = createContext<ProposalContextType | undefined>(undefined)
 
 export function ProposalProvider({ children }: { children: ReactNode }) {
-  const [proposalIds, setProposalIds] = useState<string[]>([])
-
+  
+  const [proposalIds, setProposalIds] = useState<string[]>(() => {
+    // Load from localStorage on initial render
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("proposalIds");
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  
   const addProposalId = (id: string) => {
-    setProposalIds(prev => [...prev, id])
-  }
+    setProposalIds(prev => {
+      const updated = [...prev, id];
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("proposalIds", JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
 
   return (
     <ProposalContext.Provider value={{ proposalIds, addProposalId }}>

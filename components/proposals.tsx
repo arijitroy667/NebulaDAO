@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useToast } from "@/hooks/use-toast"
 import { CreateProposalForm } from "@/components/create-proposal-form"
@@ -8,6 +8,8 @@ import { ProposalsList } from "@/components/proposals-list"
 import { ProposalDetails } from "@/components/proposal-details"
 import { Button } from "@/components/ui/button"
 import { PlusIcon } from "lucide-react"
+import { useProposalContext } from "./context/proposalContext"
+import { getProposal,createProposal,voteOnProposal } from "@/integrate"
 
 export type Proposal = {
   id: string
@@ -65,35 +67,126 @@ export function Proposals() {
       },
       endDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
     },
-  ])
+  ]);
+
+
+
+  const { proposalIds, addProposalId } = useProposalContext();
+  const [isLoadingProposals, setIsLoadingProposals] = useState(false);
+  // Load proposals from blockchain on mount or when proposalIds change
+  useEffect(() => {
+    async function loadProposals() {
+      try {
+        // Filter out proposalIds that match your hard-coded proposals
+        const newIds = proposalIds.filter(id => 
+          !proposals.some(p => p.id === id) && id !== "prop-1" && id !== "prop-2"
+        );
+        
+        if (newIds.length === 0) {
+          setIsLoadingProposals(false);
+          return;
+        }
+        
+        // Create array to hold new proposals
+        const loadedProposals: Proposal[] = [];
+        
+        for (const id of newIds) {
+          try{
+          // Fetch proposal details from blockchain
+          const details = await getProposal(id);
+          
+          const startTimeMs = Number(details[5]) * 1000;
+          const endTimeMs = Number(details[6]) * 1000;
+          const votingPeriodDays = Math.ceil((endTimeMs - startTimeMs) / (1000 * 60 * 60 * 24));
+          
+          loadedProposals.push({
+            id,
+            title: `Proposal #${id}`, // Use ID as title or parse from description
+            description: details[1], // Description is the second return value
+            votingPeriodDays: votingPeriodDays,
+            targetContract: "0x0000000000000000000000000000000000000000", // Placeholder
+            calldata: "0x", // Placeholder
+            createdAt: new Date(startTimeMs),
+            status: new Date() > new Date(endTimeMs) ? 
+              (Number(details[2]) > Number(details[3]) ? "passed" : "rejected") : "active",
+            votes: {
+              for: Number(details[2]),
+              against: Number(details[3]),
+              abstain: Number(details[4]),
+            },
+            endDate: new Date(endTimeMs),
+          });
+        } catch (proposalError) {
+          console.error(`Failed to load proposal ${id}:`, proposalError);
+        }
+      }
+      
+      if (loadedProposals.length > 0) {
+        // Merge with existing proposals
+        setProposals(prev => [...loadedProposals, ...prev]);
+      }
+    } catch (error) {
+      console.error("Failed to load proposals:", error);
+    } finally {
+      setIsLoadingProposals(false);
+    }
+  }
+  
+  loadProposals();
+}, [proposalIds]);
 
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const { toast } = useToast()
 
-  const handleCreateProposal = (proposal: Omit<Proposal, "id" | "createdAt" | "status" | "votes" | "endDate">) => {
-    const newProposal: Proposal = {
-      ...proposal,
-      id: `prop-${proposals.length + 1}`,
-      createdAt: new Date(),
-      status: "active",
-      votes: {
-        for: 0,
-        against: 0,
-        abstain: 0,
-      },
-      endDate: new Date(Date.now() + proposal.votingPeriodDays * 24 * 60 * 60 * 1000),
+  const handleCreateProposal = async (proposal: Omit<Proposal, "id" | "createdAt" | "status" | "votes" | "endDate">) => {
+    try {
+      // First create the proposal on blockchain
+      const proposalId = await createProposal(
+        proposal.description,
+        proposal.votingPeriodDays * 86400, // Convert days to seconds for blockchain
+        proposal.targetContract,
+        proposal.calldata
+      );
+      
+      if (proposalId) {
+        // Add to context for persistence
+        addProposalId(proposalId.toString());
+        
+        // Create local representation
+        const newProposal: Proposal = {
+          ...proposal,
+          id: proposalId.toString(), // Use blockchain ID
+          createdAt: new Date(),
+          status: "active",
+          votes: {
+            for: 0,
+            against: 0,
+            abstain: 0,
+          },
+          endDate: new Date(Date.now() + proposal.votingPeriodDays * 24 * 60 * 60 * 1000),
+        };
+  
+        // Update UI
+        setProposals(prev => [newProposal, ...prev]);
+        toast({
+          title: "Proposal Created",
+          description: `Your proposal has been successfully created with ID: ${proposalId}`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to create proposal:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create proposal. Check console for details.",
+        variant: "destructive"
+      });
     }
-
-    setProposals([newProposal, ...proposals])
-    setShowCreateForm(false)
-    toast({
-      title: "Proposal Created",
-      description: "Your proposal has been successfully created.",
-    })
+    
+    setShowCreateForm(false);
   }
 
-  const handleVote = (vote: Vote) => {
+  const handleVote = async (vote: Vote) => {
     setProposals(
       proposals.map((proposal) => {
         if (proposal.id === vote.proposalId) {
@@ -119,6 +212,20 @@ export function Proposals() {
         return proposal
       }),
     )
+
+    try {
+      // Call blockchain vote function (1=for, 2=against, 3=abstain)
+      const voteType = vote.vote === "for" ? 1 : vote.vote === "against" ? 2 : 3;
+      await voteOnProposal(vote.proposalId, voteType); 
+      // Rest of your code...
+    } catch (error) {
+      console.error("Failed to record vote:", error);
+      toast({
+        title: "Error",
+        description: "Failed to record vote on blockchain",
+        variant: "destructive"
+      });
+    }
 
     toast({
       title: "Vote Recorded",

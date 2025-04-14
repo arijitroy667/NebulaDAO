@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: MIT
+// // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -15,27 +16,22 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
         uint256 votesAbstain;
         uint256 startTime;
         uint256 endTime;
+        uint256 startBlock;
         bool executed;
         bytes callData;
         address targetContract;
     }
 
-    // Token used for governance
-    IERC20 public governanceToken;
+    ERC20Votes public governanceToken;
 
-    // Proposal tracking
     uint256 public proposalCount;
     mapping(uint256 => Proposal) public proposals;
-
-    // Vote tracking
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
-    // Proposal thresholds
     uint256 public minimumTokensToPropose;
     uint256 public minimumVotingPeriod;
-    uint256 public quorumPercentage; // Percentage of total token supply needed for quorum (1-100)
+    uint256 public quorumPercentage;
 
-    // Events
     event ProposalCreated(
         uint256 indexed proposalId,
         address indexed proposer,
@@ -49,7 +45,6 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
     );
     event ProposalExecuted(uint256 indexed proposalId);
 
-    // Vote types
     uint8 constant VOTE_FOR = 1;
     uint8 constant VOTE_AGAINST = 2;
     uint8 constant VOTE_ABSTAIN = 3;
@@ -60,10 +55,9 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
         uint256 _minimumVotingPeriod,
         uint256 _quorumPercentage
     ) Ownable(msg.sender) {
-        require(_governanceToken != address(0), "Invalid token address");
-        require(_quorumPercentage <= 100, "Quorum percentage must be <= 100");
+        require(_quorumPercentage <= 100, "Invalid quorum");
 
-        governanceToken = IERC20(_governanceToken);
+        governanceToken = ERC20Votes(_governanceToken);
         minimumTokensToPropose = _minimumTokensToPropose;
         minimumVotingPeriod = _minimumVotingPeriod;
         quorumPercentage = _quorumPercentage;
@@ -75,19 +69,17 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
         address _targetContract,
         bytes memory _callData
     ) external returns (uint256) {
-        // Check if proposer has enough tokens
         require(
-            governanceToken.balanceOf(msg.sender) >= minimumTokensToPropose,
-            "Not enough tokens to propose"
+            governanceToken.getPastVotes(msg.sender, block.number - 1) >=
+                minimumTokensToPropose,
+            "Not enough delegated votes to propose"
         );
         require(
             _votingPeriod >= minimumVotingPeriod,
             "Voting period too short"
         );
 
-        // Create proposal
-        uint256 proposalId = proposalCount + 1;
-
+        uint256 proposalId = ++proposalCount;
         proposals[proposalId] = Proposal({
             id: proposalId,
             proposer: msg.sender,
@@ -97,12 +89,12 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
             votesAbstain: 0,
             startTime: block.timestamp,
             endTime: block.timestamp + _votingPeriod,
+            startBlock: block.number,
             executed: false,
             callData: _callData,
             targetContract: _targetContract
         });
 
-        proposalCount = proposalId;
         emit ProposalCreated(proposalId, msg.sender, _description);
         return proposalId;
     }
@@ -110,19 +102,23 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
     function vote(uint256 _proposalId, uint8 _voteType) external {
         Proposal storage proposal = proposals[_proposalId];
 
-        require(proposal.id != 0, "Proposal does not exist");
-        require(block.timestamp < proposal.endTime, "Voting period ended");
+        require(proposal.id != 0, "Invalid proposal");
+        require(block.timestamp < proposal.endTime, "Voting ended");
         require(!hasVoted[_proposalId][msg.sender], "Already voted");
         require(
             _voteType >= VOTE_FOR && _voteType <= VOTE_ABSTAIN,
-            "Invalid vote type"
+            "Invalid vote"
         );
 
-        // Calculate voting power based on token balance
-        uint256 votingPower = governanceToken.balanceOf(msg.sender);
-        require(votingPower > 0, "No voting power");
+        uint256 votingPower = governanceToken.getPastVotes(
+            msg.sender,
+            proposal.startBlock
+        );
+        require(
+            votingPower > 0,
+            "No voting power (delegate to yourself first)"
+        );
 
-        // Record the vote
         if (_voteType == VOTE_FOR) {
             proposal.votesFor += votingPower;
         } else if (_voteType == VOTE_AGAINST) {
@@ -140,31 +136,37 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
         Proposal storage proposal = proposals[_proposalId];
 
         require(proposal.id != 0, "Proposal does not exist");
-        require(block.timestamp > proposal.endTime, "Voting period not ended");
-        require(!proposal.executed, "Proposal already executed");
+        require(block.timestamp > proposal.endTime, "Voting not ended");
+        require(!proposal.executed, "Already executed");
 
-        // Check if proposal passed (more votes for than against AND meets quorum)
         uint256 totalVotes = proposal.votesFor +
             proposal.votesAgainst +
             proposal.votesAbstain;
-        uint256 totalSupply = governanceToken.totalSupply();
-
-        // Calculate quorum threshold (percentage of total supply)
+        uint256 totalSupply = governanceToken.getPastTotalSupply(
+            proposal.startBlock
+        );
         uint256 quorumThreshold = (totalSupply * quorumPercentage) / 100;
 
         require(totalVotes >= quorumThreshold, "Quorum not reached");
-        require(
-            proposal.votesFor > proposal.votesAgainst,
-            "Proposal did not pass"
-        );
+        require(proposal.votesFor > proposal.votesAgainst, "Proposal failed");
 
         proposal.executed = true;
 
-        // Execute the proposal's action
         (bool success, ) = proposal.targetContract.call(proposal.callData);
-        require(success, "Proposal execution failed");
+        require(success, "Execution failed");
 
         emit ProposalExecuted(_proposalId);
+    }
+
+    function updateParameters(
+        uint256 _minimumTokensToPropose,
+        uint256 _minimumVotingPeriod,
+        uint256 _quorumPercentage
+    ) external onlyOwner {
+        require(_quorumPercentage <= 100, "Invalid quorum");
+        minimumTokensToPropose = _minimumTokensToPropose;
+        minimumVotingPeriod = _minimumVotingPeriod;
+        quorumPercentage = _quorumPercentage;
     }
 
     function getProposal(
@@ -198,15 +200,7 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
         );
     }
 
-    function updateParameters(
-        uint256 _minimumTokensToPropose,
-        uint256 _minimumVotingPeriod,
-        uint256 _quorumPercentage
-    ) external onlyOwner {
-        require(_quorumPercentage <= 100, "Quorum percentage must be <= 100");
-
-        minimumTokensToPropose = _minimumTokensToPropose;
-        minimumVotingPeriod = _minimumVotingPeriod;
-        quorumPercentage = _quorumPercentage;
+    function MinimumTokensToPropose() external view returns (uint256) {
+        return (minimumTokensToPropose);
     }
 }
