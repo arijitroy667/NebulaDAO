@@ -323,7 +323,9 @@ export function Proposals() {
             className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">DAO Governance</h1>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-emerald-500 bg-clip-text text-transparent transition-all duration-500 ease-in-out">
+                 Nebula DAO
+            </h1>
               <p className="text-muted-foreground">Create, vote, and track proposals for the DAO</p>
             </div>
             <Button onClick={() => setShowCreateForm(true)} className="group" size="lg">
