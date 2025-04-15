@@ -7,7 +7,8 @@ import { CreateProposalForm } from "@/components/create-proposal-form"
 import { ProposalsList } from "@/components/proposals-list"
 import { ProposalDetails } from "@/components/proposal-details"
 import { Button } from "@/components/ui/button"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, Sparkles, Vote, Rocket, Lock } from "lucide-react"
+
 import { useProposalContext } from "./context/proposalContext"
 import { getProposal, createProposal, voteOnProposal } from "@/integrate"
 
@@ -295,87 +296,186 @@ export function Proposals() {
         description: "Failed to record vote on blockchain",
         variant: "destructive"
       });
-      
-      // Revert optimistic update if the blockchain call failed
-      // (For a production app you might want to implement this)
     }
   };
 
-  return (
-    <div className="space-y-8">
-      {!isConnected ? (
-        <div className="text-center p-8 border rounded-lg">
-          <h2 className="text-xl font-semibold mb-4">Wallet Connection Required</h2>
-          <p className="mb-4">Please connect your wallet to view and interact with proposals.</p>
-          <Button 
-            onClick={() => setConnectionAttempted(false)}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Connect Wallet
-          </Button>
-        </div>
-      ) : (
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-emerald-500 bg-clip-text text-transparent transition-all duration-500 ease-in-out">
-                 Nebula DAO
-            </h1>
-              <p className="text-muted-foreground">Create, vote, and track proposals for the DAO</p>
-            </div>
-            <Button onClick={() => setShowCreateForm(true)} className="group" size="lg">
-              <PlusIcon className="mr-2 h-4 w-4 transition-transform group-hover:rotate-90" />
-              Create Proposal
-            </Button>
-          </motion.div>
+  const fadeIn = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+  };
 
-          <AnimatePresence mode="wait">
-            {showCreateForm ? (
-              <motion.div
-                key="create-form"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <CreateProposalForm onSubmit={handleCreateProposal} onCancel={() => setShowCreateForm(false)} />
+  const features = [
+    {
+      icon: <Sparkles className="w-8 h-8 text-purple-500" />,
+      title: "Create Proposals",
+      description: "Launch innovative ideas and shape the future of the ecosystem"
+    },
+    {
+      icon: <Vote className="w-8 h-8 text-blue-500" />,
+      title: "Vote on Changes",
+      description: "Participate in democratic decision-making processes"
+    },
+    {
+      icon: <Rocket className="w-8 h-8 text-pink-500" />,
+      title: "Execute Decisions",
+      description: "Implement approved proposals automatically on-chain"
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-white to-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {!isConnected ? (
+          <div className="space-y-16">
+            {/* Hero Section */}
+            <motion.div 
+              className="text-center space-y-8"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: { opacity: 1, transition: { staggerChildren: 0.2 } }
+              }}
+            >
+              <motion.div variants={fadeIn}>
+                <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 bg-clip-text text-transparent">
+                  Welcome to Nebula DAO
+                </h1>
+                <p className="mt-4 text-xl text-gray-600">
+                  Decentralized governance for the next generation
+                </p>
               </motion.div>
-            ) : selectedProposal ? (
-              <motion.div
-                key="proposal-details"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+
+              <motion.div 
+                variants={fadeIn}
+                className="flex justify-center"
               >
-                <ProposalDetails proposal={selectedProposal} onBack={() => setSelectedProposal(null)} onVote={handleVote} />
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 rounded-lg blur opacity-50 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                  <button
+                    onClick={() => setConnectionAttempted(false)}
+                    className="relative px-8 py-4 bg-white rounded-lg leading-none flex items-center divide-x divide-gray-600"
+                  >
+                    <span className="flex items-center space-x-2">
+                      <Lock className="w-5 h-5" />
+                      <span className="text-lg font-medium">Connect Wallet</span>
+                    </span>
+                  </button>
+                </div>
               </motion.div>
-            ) : (
-              <motion.div
-                key="proposals-list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                {isLoadingProposals ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-300 border-t-blue-600"></div>
-                    <p className="mt-4 text-gray-500">Loading proposals...</p>
+            </motion.div>
+
+            {/* Features Section */}
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: { transition: { staggerChildren: 0.3 } }
+              }}
+              className="grid md:grid-cols-3 gap-8 mt-16"
+            >
+              {features.map((feature, index) => (
+                <motion.div
+                  key={index}
+                  variants={{
+                    hidden: { opacity: 0, y: 20 },
+                    visible: { opacity: 1, y: 0 }
+                  }}
+                  className="bg-white p-8 rounded-xl shadow-xl hover:shadow-2xl transition-shadow duration-300"
+                >
+                  <div className="flex items-center justify-center w-16 h-16 bg-gray-50 rounded-full mb-6">
+                    {feature.icon}
                   </div>
-                ) : (
-                  <ProposalsList proposals={proposals} onSelectProposal={setSelectedProposal} />
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </>
-      )}
+                  <h3 className="text-xl font-semibold mb-4">{feature.title}</h3>
+                  <p className="text-gray-600">{feature.description}</p>
+                </motion.div>
+              ))}
+            </motion.div>
+
+            {/* Stats Section */}
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={fadeIn}
+              className="grid grid-cols-3 gap-8 py-12 px-8 bg-white rounded-2xl shadow-lg"
+            >
+              <div className="text-center">
+                <div className="text-4xl font-bold text-purple-600">1.2K+</div>
+                <div className="text-gray-600 mt-2">Active Proposals</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-blue-600">45K+</div>
+                <div className="text-gray-600 mt-2">Community Members</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl font-bold text-pink-600">$2.5M</div>
+                <div className="text-gray-600 mt-2">Total Value Locked</div>
+              </div>
+            </motion.div>
+          </div>
+        ) : (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-emerald-500 bg-clip-text text-transparent transition-all duration-500 ease-in-out">
+                  Nebula DAO
+                </h1>
+                <p className="text-muted-foreground">Create, vote, and track proposals for the DAO</p>
+              </div>
+              <Button onClick={() => setShowCreateForm(true)} className="group" size="lg">
+                <PlusIcon className="mr-2 h-4 w-4 transition-transform group-hover:rotate-90" />
+                Create Proposal
+              </Button>
+            </motion.div>
+
+            <AnimatePresence mode="wait">
+              {showCreateForm ? (
+                <motion.div
+                  key="create-form"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CreateProposalForm onSubmit={handleCreateProposal} onCancel={() => setShowCreateForm(false)} />
+                </motion.div>
+              ) : selectedProposal ? (
+                <motion.div
+                  key="proposal-details"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ProposalDetails proposal={selectedProposal} onBack={() => setSelectedProposal(null)} onVote={handleVote} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="proposals-list"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {isLoadingProposals ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-300 border-t-blue-600"></div>
+                      <p className="mt-4 text-gray-500">Loading proposals...</p>
+                    </div>
+                  ) : (
+                    <ProposalsList proposals={proposals} onSelectProposal={setSelectedProposal} />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </div>
     </div>
   );
 }
