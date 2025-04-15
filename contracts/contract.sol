@@ -203,4 +203,6 @@ contract SimpleDAO is Ownable, ReentrancyGuard {
     function MinimumTokensToPropose() external view returns (uint256) {
         return (minimumTokensToPropose);
     }
+
+    
 }

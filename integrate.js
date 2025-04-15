@@ -1,11 +1,14 @@
 import { ethers } from "ethers";
 
-const TOKEN_ADDRESS = "0xA7E27d9BbcD7ff69F7d5e409BbB70bFdD734D9E5";
-const DAO_ADDRESS = "0x35C487FFe175b99F736afA0b230BaE244b780fE9";
+const TOKEN_ADDRESS = "0x6fAd7ECe2C82a6AeB1B87755261456a58d276976";
+const DAO_ADDRESS = "0x62BbC5F762f1814E47A32c0adeD933a4Fa3Cd8b3";
 
 const TOKEN_ABI = [
     "function balanceOf(address account) external view returns (uint256)",
-    "function approve(address spender, uint256 amount) external returns (bool)"
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function delegate(address delegatee) external",
+    "function delegates(address account) external view returns (address)",
+    "function getPastVotes(address account, uint256 blockNumber) external view returns (uint256)"
 ];
 
 const DAO_ABI = [
@@ -524,11 +527,79 @@ async function getContract() {
     return new ethers.Contract(DAO_ADDRESS, DAO_ABI, signer);
 }
 
+async function delegateTokens() {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const address = await signer.getAddress();
+    
+    try {
+        const tokenContract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, signer);
+        
+        // First check if the user already has delegated votes
+        try {
+            const daoContract = new ethers.Contract(DAO_ADDRESS, DAO_ABI, signer);
+            const minTokensToPropose = await daoContract.minimumTokensToPropose();
+            
+            // Add this method to TOKEN_ABI
+            // "function getPastVotes(address account, uint256 blockNumber) external view returns (uint256)"
+            const currentBlock = await provider.getBlockNumber();
+            const currentVotes = await tokenContract.getPastVotes(address, currentBlock - 1);
+            
+            console.log(`Current delegated votes: ${ethers.formatEther(currentVotes)}`);
+            console.log(`Minimum required: ${ethers.formatEther(minTokensToPropose)}`);
+            
+            if (currentVotes >= minTokensToPropose) {
+                console.log("Already have enough delegated votes");
+                return true;
+            }
+        } catch (error) {
+            console.warn("Could not check current votes, proceeding with delegation", error);
+        }
+        
+        // Check balance
+        const balance = await tokenContract.balanceOf(address);
+        if (balance <= 0) {
+            throw new Error("No tokens to delegate. You need to get some tokens first.");
+        }
+        
+        console.log(`Delegating ${ethers.formatEther(balance)} tokens to self...`);
+        const tx = await tokenContract.delegate(address);
+        const receipt = await tx.wait();
+        console.log("Delegation transaction confirmed:", receipt.hash);
+        
+        // IMPORTANT: Wait for the next block before proceeding
+        console.log("Waiting for delegation to take effect (next block)...");
+        await new Promise(resolve => setTimeout(resolve, 15000)); // Wait 15 seconds
+        
+        return true;
+    } catch (error) {
+        console.error("Token delegation failed:", error);
+        throw new Error(`Delegation failed: ${error.message}`);
+    }
+}
+
 async function createProposal(description, votingPeriod, targetContract, callData) {
     try {
         await checkAndApproveTokens();
         
+        const delegated = await delegateTokens();
+        if (!delegated) {
+            throw new Error("Could not delegate tokens. Please try again later.");
+        }
+
+        // Add this code to check minimum voting period
         const contract = await getContract();
+        const minVotingPeriod = await contract.minimumVotingPeriod();
+        console.log(`Minimum voting period: ${minVotingPeriod}`);
+        
+        // Ensure voting period is at least the minimum required
+        const adjustedVotingPeriod = Math.max(Number(votingPeriod), Number(minVotingPeriod));
+        if (adjustedVotingPeriod > votingPeriod) {
+            console.log(`Voting period adjusted from ${votingPeriod} to minimum required: ${adjustedVotingPeriod}`);
+            votingPeriod = adjustedVotingPeriod;
+        }
+
+        console.log("Tokens approved and delegated successfully");
         const tx = await contract.createProposal(description, votingPeriod, targetContract, callData);
         console.log("Create proposal transaction sent:", tx.hash);
         
@@ -551,15 +622,25 @@ async function createProposal(description, votingPeriod, targetContract, callDat
         return proposalId;
     } catch (error) {
         console.error("Failed to create proposal:", error);
+        if (error.message && error.message.includes("Not enough delegated votes to propose")) {
+            throw new Error("You don't have enough voting power. Make sure you have delegated your tokens and wait for the next block.");
+        } else if (error.message && error.message.includes("Voting period too short")) {
+            throw new Error("Voting period is too short. Please increase the voting period.");
+        }
         throw error;
     }
 }
 
 async function voteOnProposal(proposalId, voteType) {
-    const contract = await getContract(); // Fixed: removed parameter
-    const tx = await contract.vote(proposalId, voteType);
-    await tx.wait();
-    console.log("Vote cast:", tx);
+     // Add validation
+  if (voteType !== 1 && voteType !== 2 && voteType !== 3) {
+    throw new Error(`Invalid vote type: ${voteType}. Must be 1, 2, or 3.`);
+  }
+  
+  const contract = await getContract();
+  const tx = await contract.vote(proposalId, voteType);
+  await tx.wait();
+  console.log("Vote cast:", tx);
 }
 
 async function executeProposal(proposalId) {
@@ -702,4 +783,30 @@ async function checkAndApproveTokens() {
     }
 }
 
-export { createProposal, voteOnProposal, executeProposal, getProposal, updateParameters };
+async function getDAOParameters() {
+    try {
+        const contract = await getContract();
+        const [
+            minimumTokensToPropose,
+            minimumVotingPeriod,
+            quorumPercentage
+        ] = await Promise.all([
+            contract.minimumTokensToPropose(),
+            contract.minimumVotingPeriod(),
+            contract.quorumPercentage()
+        ]);
+        
+        return {
+            minimumTokensToPropose: ethers.formatEther(minimumTokensToPropose),
+            minimumVotingPeriod: Number(minimumVotingPeriod),
+            quorumPercentage: Number(quorumPercentage)
+        };
+    } catch (error) {
+        console.error("Failed to get DAO parameters:", error);
+        throw new Error("Could not retrieve DAO configuration parameters");
+    }
+}
+
+
+
+export { createProposal, voteOnProposal, executeProposal, getProposal, updateParameters,delegateTokens, checkAndApproveTokens,getDAOParameters };

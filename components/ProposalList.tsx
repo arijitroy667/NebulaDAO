@@ -15,9 +15,9 @@ type Proposal = {
 }
 
 // Vote types as constants
-const VOTE_FOR = 0;
-const VOTE_AGAINST = 1;
-const VOTE_ABSTAIN = 2;
+const VOTE_FOR = 1;
+const VOTE_AGAINST = 2;
+const VOTE_ABSTAIN = 3;
 
 export default function ProposalList() {
     const { proposalIds } = useProposalContext()
@@ -81,6 +81,10 @@ export default function ProposalList() {
                             const stringId = id.toString();
                             const proposal = await getProposal(stringId);
                             
+                            if (!proposal) {
+                                console.log(`Proposal ${stringId} does not exist or returned null`);
+                                return null;
+                            }
                             return {
                                 id: stringId,
                                 description: proposal[1],

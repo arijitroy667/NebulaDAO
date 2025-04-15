@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState,useEffect,useMemo } from "react"
 import { motion } from "framer-motion"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
@@ -15,8 +15,9 @@ import { ArrowLeftIcon } from "lucide-react"
 import type { Proposal } from "@/components/proposals"
 import { createProposal } from "../integrate"
 import { useProposalContext } from "./context/proposalContext"
+import { getDAOParameters } from "@/integrate"
 
-const formSchema = z.object({
+const baseFormSchema = z.object({
   title: z.string().min(5, {
     message: "Title must be at least 5 characters.",
   }),
@@ -30,9 +31,9 @@ const formSchema = z.object({
   calldata: z.string().regex(/^0x[a-fA-F0-9]+$/, {
     message: "Must be valid hexadecimal calldata.",
   }),
-})
+});
 
-type FormValues = z.infer<typeof formSchema>
+type FormValues = z.infer<typeof baseFormSchema>
 
 interface CreateProposalFormProps {
   onSubmit: (values: Omit<Proposal, "id" | "createdAt" | "status" | "votes" | "endDate">) => void
@@ -42,6 +43,30 @@ interface CreateProposalFormProps {
 export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormProps) {
   const [votingPeriod, setVotingPeriod] = useState(7)
   const { addProposalId } = useProposalContext()
+  
+  const [daoParams, setDaoParams] = useState({
+    minimumTokensToPropose: "0",
+    minimumVotingPeriod: 0,
+    quorumPercentage: 0
+  });
+  
+  const formSchema = useMemo(()=> z.object({
+    title: z.string().min(5, {
+      message: "Title must be at least 5 characters.",
+    }),
+    description: z.string().min(20, {
+      message: "Description must be at least 20 characters.",
+    }),
+    votingPeriodDays: z.number().min(daoParams?.minimumVotingPeriod || 1, {
+      message: `Voting period must be at least ${daoParams?.minimumVotingPeriod || 1} days.`
+    }).max(30),
+    targetContract: z.string().regex(/^0x[a-fA-F0-9]{40}$/, {
+      message: "Must be a valid Ethereum address.",
+    }),
+    calldata: z.string().regex(/^0x[a-fA-F0-9]+$/, {
+      message: "Must be valid hexadecimal calldata.",
+    }),
+  }), [daoParams.minimumVotingPeriod]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -59,7 +84,7 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
 
     try {
       // Call your integration function
-      const proposalId = createProposal(description, votingPeriodDays, targetContract, calldata);
+      const proposalId = await createProposal(description, votingPeriodDays, targetContract, calldata);
       // Then notify parent component
       if (proposalId) {
         addProposalId(proposalId.toString());
@@ -70,6 +95,32 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
       // Handle error appropriately
     }
   }
+
+  
+  useEffect(() => {
+    async function fetchParams() {
+      try {
+        const params = await getDAOParameters();
+        setDaoParams(params);
+      } catch (error) {
+        console.error("Failed to load DAO parameters:", error);
+      }
+    }
+    
+    fetchParams();
+  }, []);
+
+  useEffect(() => {
+    if (daoParams.minimumVotingPeriod > 0) {
+      const minVotingPeriod = daoParams.minimumVotingPeriod;
+      
+      // Update the local state
+      setVotingPeriod(Math.max(votingPeriod, minVotingPeriod));
+      
+      // Update the form default
+      form.setValue('votingPeriodDays', Math.max(form.getValues('votingPeriodDays'), minVotingPeriod));
+    }
+  }, [daoParams.minimumVotingPeriod]);
 
   return (
     <motion.div
@@ -133,13 +184,15 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
                     <FormLabel>Voting Period (Days): {votingPeriod}</FormLabel>
                     <FormControl>
                       <Slider
-                        min={1}
+                        min={daoParams.minimumVotingPeriod || 1}
                         max={30}
                         step={1}
-                        value={[votingPeriod]}
-                        onValueChange={(value) => {
-                          setVotingPeriod(value[0])
-                          field.onChange(value[0])
+                        value={[field.value]}
+                        onValueChange={(values) => {
+                          // Update both the form field and local state
+                          const newValue = values[0];
+                          field.onChange(newValue);
+                          setVotingPeriod(newValue);
                         }}
                       />
                     </FormControl>
