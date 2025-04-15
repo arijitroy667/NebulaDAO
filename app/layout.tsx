@@ -22,20 +22,38 @@ export const metadata: Metadata = {
 //     </html>
 //   )
 // }
+// export default function RootLayout({
+//   children,
+// }: Readonly<{
+//   children: React.ReactNode
+// }>) {
+//   return (
+//     <html lang="en">
+//       <body>{children}</body>
+//     </html>
+//   )
+// }
+
+
+"use client"
+
+import { ProposalProvider } from "@/components/contexts/proposalContext"
+
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <html lang="en">
-<<<<<<< Updated upstream
-      <body>{children}</body>
-=======
-      <body className="min-h-screen w-full m-0 p-0">
-        {children}
+      <head>
+        <title>NebulaDAO</title>
+      </head>
+      <body>
+        <ProposalProvider>
+          {children}
+        </ProposalProvider>
       </body>
->>>>>>> Stashed changes
     </html>
   )
 }

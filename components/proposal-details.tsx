@@ -186,9 +186,10 @@ export function ProposalDetails({ proposal, onBack, onVote }: ProposalDetailsPro
                 <h3 className="mb-2 font-medium">Calldata</h3>
                 <div className="flex items-center gap-2 overflow-hidden rounded-md bg-muted p-2 font-mono text-xs">
                   <CodeIcon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{proposal.calldata}</span>
+                  <span className="truncate">{proposal.callData}</span>
                 </div>
               </div>
+
 
               <div className="rounded-lg border p-4">
                 <h3 className="mb-2 font-medium">Execution Status</h3>

@@ -8,6 +8,8 @@ import { ProposalsList } from "@/components/proposals-list"
 import { ProposalDetails } from "@/components/proposal-details"
 import { Button } from "@/components/ui/button"
 import { PlusIcon } from "lucide-react"
+import { useProposalContext } from "./contexts/proposalContext"
+import { createProposal } from "../integrate"
 
 export type Proposal = {
   id: string
@@ -15,7 +17,7 @@ export type Proposal = {
   description: string
   votingPeriodDays: number
   targetContract: string
-  calldata: string
+  callData: string  // Changed from calldata to callData
   createdAt: Date
   status: "active" | "passed" | "rejected" | "pending"
   votes: {
@@ -26,12 +28,23 @@ export type Proposal = {
   endDate: Date
 }
 
+export type CreateProposalData = {
+  title: string
+  description: string
+  votingPeriod: number
+  votingPeriodDays: number
+  targetContract: string
+  callData: string
+}
+
 export type Vote = {
   proposalId: string
   vote: "for" | "against" | "abstain"
 }
 
 export function Proposals() {
+  const { proposalIds, addProposalId } = useProposalContext()
+  const { toast } = useToast()
   const [proposals, setProposals] = useState<Proposal[]>([
     {
       id: "prop-1",
@@ -39,7 +52,7 @@ export function Proposals() {
       description: "Allocate 500 ETH from the treasury for the development of the new protocol version.",
       votingPeriodDays: 7,
       targetContract: "0x1234567890abcdef1234567890abcdef12345678",
-      calldata: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      callData: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
       status: "active",
       votes: {
@@ -49,50 +62,55 @@ export function Proposals() {
       },
       endDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
     },
-    {
-      id: "prop-2",
-      title: "Protocol Parameter Update",
-      description: "Update the fee structure to improve protocol sustainability.",
-      votingPeriodDays: 5,
-      targetContract: "0xabcdef1234567890abcdef1234567890abcdef12",
-      calldata: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-      createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
-      status: "passed",
-      votes: {
-        for: 230,
-        against: 20,
-        abstain: 5,
-      },
-      endDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    },
+    // ... second proposal
   ])
-
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const { toast } = useToast()
 
-  const handleCreateProposal = (proposal: Omit<Proposal, "id" | "createdAt" | "status" | "votes" | "endDate">) => {
-    const newProposal: Proposal = {
-      ...proposal,
-      id: `prop-${proposals.length + 1}`,
-      createdAt: new Date(),
-      status: "active",
-      votes: {
-        for: 0,
-        against: 0,
-        abstain: 0,
-      },
-      endDate: new Date(Date.now() + proposal.votingPeriodDays * 24 * 60 * 60 * 1000),
+  const handleCreateProposal = async (data: CreateProposalData) => {
+    try {
+      const proposalId = await createProposal(
+        data.description,
+        data.votingPeriod,
+        data.targetContract,
+        data.callData
+      )
+
+      if (proposalId) {
+        addProposalId(proposalId.toString())
+        const newProposal: Proposal = {
+          id: proposalId.toString(),
+          title: data.title,
+          description: data.description,
+          votingPeriodDays: data.votingPeriodDays,
+          targetContract: data.targetContract,
+          callData: data.callData,
+          createdAt: new Date(),
+          status: "active",
+          votes: {
+            for: 0,
+            against: 0,
+            abstain: 0,
+          },
+          endDate: new Date(Date.now() + data.votingPeriodDays * 24 * 60 * 60 * 1000),
+        }
+
+        setProposals([newProposal, ...proposals])
+        setShowCreateForm(false)
+        toast({
+          title: "Proposal Created",
+          description: "Your proposal has been successfully created.",
+        })
+      }
+    } catch (error) {
+      console.error("Failed to create proposal:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create proposal. Please try again.",
+        variant: "destructive"
+      })
     }
-
-    setProposals([newProposal, ...proposals])
-    setShowCreateForm(false)
-    toast({
-      title: "Proposal Created",
-      description: "Your proposal has been successfully created.",
-    })
   }
-
   const handleVote = (vote: Vote) => {
     setProposals(
       proposals.map((proposal) => {

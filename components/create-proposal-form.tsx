@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { ArrowLeftIcon } from "lucide-react"
 import type { Proposal } from "@/components/proposals"
-import {createProposal} from "../integrate"
+import { createProposal } from "../integrate"
+import { CreateProposalData } from "./proposals"
 
 const formSchema = z.object({
   title: z.string().min(5, {
@@ -34,7 +35,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>
 
 interface CreateProposalFormProps {
-  onSubmit: (values: Omit<Proposal, "id" | "createdAt" | "status" | "votes" | "endDate">) => void
+  onSubmit: (data: CreateProposalData) => Promise<void>  // Changed to match the expected type
   onCancel: () => void
 }
 
@@ -52,20 +53,35 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
     },
   })
 
-  function handleSubmit(values: FormValues) {
+  async function handleSubmit(values: FormValues) {
     const { title, description, votingPeriodDays, targetContract, calldata } = values;
+    const votingPeriodSeconds = BigInt(votingPeriodDays * 86400);
 
     try {
-      // Call your integration function
-      createProposal(description,votingPeriodDays,targetContract,calldata);
-      // Then notify parent component
-      onSubmit(values);
+      const proposalId = await createProposal(
+        description,
+        votingPeriodSeconds,
+        targetContract,
+        calldata
+      );
+
+      if (proposalId) {
+        const formattedData: CreateProposalData = {  // Explicitly type the data
+          title,
+          description,
+          votingPeriod: votingPeriodDays * 86400,
+          votingPeriodDays,
+          targetContract,
+          callData: calldata
+        };
+
+        await onSubmit(formattedData);
+      }
     } catch (error) {
       console.error("Error creating proposal:", error);
-      // Handle error appropriately
+      throw error;
     }
   }
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
