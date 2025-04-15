@@ -83,12 +83,12 @@ export function CreateProposalForm({ onSubmit, onCancel }: CreateProposalFormPro
     const { title, description, votingPeriodDays, targetContract, calldata } = values;
 
     try {
-      // Call your integration function
-      const proposalId = await createProposal(description, votingPeriodDays, targetContract, calldata);
-      // Then notify parent component
-      if (proposalId) {
-        addProposalId(proposalId.toString());
-      }
+      // // Call your integration function
+      // const proposalId = await createProposal(description, votingPeriodDays, targetContract, calldata);
+      // // Then notify parent component
+      // if (proposalId) {
+      //   addProposalId(proposalId.toString());
+      // }
       onSubmit(values);
     } catch (error) {
       console.error("Error creating proposal:", error);
